@@ -9,4 +9,6 @@ logs/*
 vectorstore/*
 !vectorstore/.gitkeep
 coverage
+streamlit_data
+__pycache__
 .DS_Store

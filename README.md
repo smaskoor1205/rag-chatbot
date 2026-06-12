@@ -24,6 +24,17 @@ npm run dev
 
 Open `http://localhost:5173` and sign in with the admin account from `.env`.
 
+## Streamlit Cloud Version
+
+If your deployment must use Streamlit, this repo also includes a Python app:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+For Streamlit Cloud, set the main file to `app.py` and add `OPENAI_API_KEY`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in app secrets.
+
 ## Commands
 
 ```bash
