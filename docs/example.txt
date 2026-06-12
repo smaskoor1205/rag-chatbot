@@ -1,0 +1,1 @@
+Enterprise knowledge bases become useful when answers are grounded in trusted source material. This sample document can be ingested with npm run ingest -- -f ./docs/example.txt. The chatbot should cite this document when asked about trusted source material.
