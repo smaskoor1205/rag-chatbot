@@ -1,5 +1,6 @@
 import hashlib
 import os
+import secrets
 import sqlite3
 import tempfile
 from dataclasses import dataclass
@@ -14,7 +15,6 @@ import streamlit as st
 from bs4 import BeautifulSoup
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 from openai import OpenAI
-from passlib.hash import bcrypt
 
 
 APP_DIR = Path(__file__).parent
@@ -108,9 +108,26 @@ def bootstrap_admin(connection: sqlite3.Connection) -> None:
         return
     connection.execute(
         "INSERT INTO users (email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
-        (admin_email, "Admin", bcrypt.hash(admin_password), "admin", datetime.utcnow().isoformat()),
+        (admin_email, "Admin", hash_password(admin_password), "admin", datetime.utcnow().isoformat()),
     )
     connection.commit()
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 260_000)
+    return f"pbkdf2_sha256${salt}${digest.hex()}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        algorithm, salt, expected = stored_hash.split("$", 2)
+    except ValueError:
+        return False
+    if algorithm != "pbkdf2_sha256":
+        return False
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 260_000).hex()
+    return secrets.compare_digest(digest, expected)
 
 
 def find_user(connection: sqlite3.Connection, email: str) -> sqlite3.Row | None:
@@ -120,7 +137,7 @@ def find_user(connection: sqlite3.Connection, email: str) -> sqlite3.Row | None:
 def create_user(connection: sqlite3.Connection, email: str, name: str, password: str) -> User:
     connection.execute(
         "INSERT INTO users (email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
-        (email.lower().strip(), name.strip(), bcrypt.hash(password), "user", datetime.utcnow().isoformat()),
+        (email.lower().strip(), name.strip(), hash_password(password), "user", datetime.utcnow().isoformat()),
     )
     connection.commit()
     row = find_user(connection, email)
@@ -131,7 +148,7 @@ def create_user(connection: sqlite3.Connection, email: str, name: str, password:
 
 def authenticate(connection: sqlite3.Connection, email: str, password: str) -> User | None:
     row = find_user(connection, email)
-    if row is None or not bcrypt.verify(password, row["password_hash"]):
+    if row is None or not verify_password(password, row["password_hash"]):
         return None
     return User(id=row["id"], email=row["email"], name=row["name"], role=row["role"])
 
