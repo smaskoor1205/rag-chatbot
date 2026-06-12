@@ -6,6 +6,7 @@ uploads/*
 !uploads/.gitkeep
 logs/*
 !logs/.gitkeep
+server/logs
 vectorstore/*
 !vectorstore/.gitkeep
 coverage
