@@ -11,5 +11,7 @@ vectorstore/*
 !vectorstore/.gitkeep
 coverage
 streamlit_data
+local_rag_data
+models/*.gguf
 __pycache__
 .DS_Store

@@ -1,6 +1,6 @@
-# Streamlit Deployment
+# Streamlit / Local-first Deployment
 
-This repository includes a Streamlit version for Streamlit Cloud.
+This repository includes a Streamlit app in `app.py`, but the current workflow is local-first and uses llama.cpp with a local GGUF model.
 
 ## Required Files
 
@@ -8,27 +8,27 @@ This repository includes a Streamlit version for Streamlit Cloud.
 - `requirements.txt`
 - `.streamlit/config.toml`
 
-## Local Run
+## Local Run Recommended
 
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## Streamlit Cloud
+Place a GGUF model under `models/`, then set the model path in the sidebar.
 
-1. Push this repository to GitHub.
-2. Open Streamlit Cloud.
-3. Create a new app from `smaskoor1205/rag-chatbot`.
-4. Set main file path to `app.py`.
-5. Add these secrets:
+## Streamlit Cloud Note
+
+Streamlit Cloud is not ideal for this local-first version because GGUF model files are large and llama.cpp inference needs local CPU/RAM resources. Use local Streamlit, Docker, Codespaces, or a VM where you can store the model file.
+
+Optional secrets:
 
 ```toml
-OPENAI_API_KEY = "your-openai-api-key"
 ADMIN_EMAIL = "admin@example.com"
 ADMIN_PASSWORD = "ChangeMe123!"
+LLAMA_MODEL_PATH = "models/qwen2.5-7b-instruct-q4_k_m.gguf"
+LLAMA_N_CTX = "8192"
+LLAMA_N_THREADS = "8"
 ```
 
-6. Deploy.
-
-The app stores SQLite data, uploaded files, and Chroma vectors under `streamlit_data/`.
+The app stores SQLite data and uploaded files under `local_rag_data/`.

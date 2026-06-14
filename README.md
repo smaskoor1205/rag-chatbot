@@ -24,16 +24,16 @@ npm run dev
 
 Open `http://localhost:5173` and sign in with the admin account from `.env`.
 
-## Streamlit Cloud Version
+## Local-first Streamlit Version
 
-If your deployment must use Streamlit, this repo also includes a Python app:
+The Python `app.py` now implements a local-first document Q&A workflow inspired by the Mozilla.ai lightweight RAG blueprint. It uses PyMuPDF4LLM for document extraction and llama.cpp for local GGUF model inference.
 
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-For Streamlit Cloud, set the main file to `app.py` and add `OPENAI_API_KEY`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in app secrets.
+Download a local `.gguf` model into `models/`, then set the model path in the app sidebar. See `LOCAL_FIRST_RAG.md`.
 
 ## Commands
 
