@@ -1,28 +1,28 @@
-# Enterprise RAG Chatbot
+# Local-first RAG Chatbot
 
-A production-oriented Retrieval-Augmented Generation chatbot built with React, Vite, TailwindCSS, Express, TypeScript, LangChain JS, OpenAI, ChromaDB, SQLite, JWT auth, Docker, and GitHub Actions.
+A local-first Retrieval-Augmented Generation chatbot built with Streamlit, PyMuPDF4LLM, llama.cpp, SQLite, and local GGUF models. The older React + Node implementation is still present in `client/` and `server/`, but the main app is now `app.py`.
 
 ## Features
 
-- ChatGPT-style authenticated UI
-- PDF, DOCX, TXT, Markdown, and HTML ingestion
-- Chunking, embeddings, ChromaDB indexing, and retrieval
-- GPT-4o-mini grounded responses with source citations
-- Streaming chat responses over server-sent events
+- No-login Streamlit UI
+- PDF, DOCX, TXT, Markdown, and HTML document ingestion
+- Structured extraction with PyMuPDF4LLM
+- Heading-aware section splitting
+- Local section retrieval
+- Local llama.cpp GGUF model answers
+- Source-style retrieved-section citations
 - Conversation memory and chat history
-- Admin dashboard and operational health endpoints
-- SQLite repositories, service layer, strict TypeScript
-- Docker Compose deployment and CI pipeline
+- SQLite persistence
+- Ruff, mypy, pytest, and pre-commit quality checks
 
 ## Quick Start
 
 ```bash
-cp .env.example .env
-npm install
-npm run dev
+pip install -r requirements.txt
+streamlit run app.py
 ```
 
-Open `http://localhost:5173` and sign in with the admin account from `.env`.
+Open the local Streamlit URL shown in the terminal. The app opens directly with no login.
 
 ## Local-first Streamlit Version
 
@@ -50,14 +50,14 @@ pytest
 ## Commands
 
 ```bash
-npm install
-npm run dev
-npm run build
-npm run test
-npm run ingest -- -f ./docs/example.txt
-docker compose up
+pip install -r requirements.txt
+streamlit run app.py
+pip install -r requirements-dev.txt
+pre-commit run --all-files
+pytest
+mypy app.py
 ```
 
 ## Environment
 
-Set `OPENAI_API_KEY` for embeddings and generation. Without it, the application still runs and clearly reports that generation is disabled.
+No OpenAI key is required for the local-first Streamlit workflow. Add a local `.gguf` model under `models/`, then set the model path in the app sidebar.

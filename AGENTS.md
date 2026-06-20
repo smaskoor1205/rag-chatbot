@@ -30,7 +30,6 @@ Database Agent:
 - Query optimization
 
 DevOps Agent:
-- Docker
 - CI/CD
 - Logging
 - Monitoring

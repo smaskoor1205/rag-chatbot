@@ -1,26 +1,38 @@
 # Architecture
 
-## Layers
+## Current Main App
 
-- Client: React components, hooks, typed API client, Tailwind UI.
-- Routes: Express routers define HTTP boundaries.
-- Middleware: auth, upload validation, logging, rate limiting, error handling.
-- Services: authentication, ingestion, chunking, vector storage, RAG, chat orchestration.
-- Repositories: SQLite persistence for users, documents, chunks, conversations, and messages.
-- Infrastructure: ChromaDB for vectors, OpenAI for embeddings and generation, Docker for runtime.
+The main application is `app.py`, a local-first Streamlit document Q&A app.
 
-## Patterns
+## Components
 
-- Service Layer Pattern keeps business logic outside routes.
-- Repository Pattern isolates SQLite queries.
-- SOLID-oriented classes use constructor dependencies for testability.
-- Strict TypeScript is enabled in both client and server.
+- Streamlit UI: upload documents, configure local model path, ask questions, inspect retrieved sections.
+- Document extraction: `PyMuPDF4LLM` for PDFs, `python-docx` for DOCX, BeautifulSoup for HTML, plain text for TXT/MD.
+- Sectioning: Markdown headings are used to split content into meaningful sections.
+- Retrieval: local lexical scoring selects the most relevant sections for the question.
+- Generation: `llama-cpp-python` runs a local GGUF model through llama.cpp.
+- Persistence: SQLite stores documents, sections, conversations, and messages.
+- Quality checks: Ruff, pytest, mypy, and pre-commit validate Python code.
 
-## RAG Flow
+## Flow
 
-1. User uploads a supported document.
-2. Server parses text and normalizes content.
-3. Chunk service creates overlapping chunks.
-4. Chunks are stored in SQLite and embedded with `text-embedding-3-small`.
-5. Embeddings are upserted to ChromaDB with citation metadata.
-6. Chat queries retrieve relevant chunks, lightly re-rank them, and stream a GPT-4o-mini answer with citations.
+```text
+Upload document
+-> Extract structured text
+-> Split into sections
+-> Store sections in SQLite
+-> Ask question
+-> Retrieve matching sections
+-> Send context to local GGUF model
+-> Show answer and citations
+```
+
+## Local-first Design
+
+- No OpenAI key required.
+- No Docker required.
+- No login required.
+- No cloud vector database required.
+- Documents and indexes stay on the local machine.
+
+The older React + Node implementation remains in `client/` and `server/` for reference, but the active app is the Streamlit workflow.

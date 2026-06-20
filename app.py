@@ -142,17 +142,20 @@ def migrate(connection: sqlite3.Connection) -> None:
     connection.commit()
 
 
-def bootstrap_admin(connection: sqlite3.Connection) -> None:
-    admin_email = get_setting("ADMIN_EMAIL", "admin@example.com").lower()
-    admin_password = get_setting("ADMIN_PASSWORD", "ChangeMe123!")
-    existing = connection.execute("SELECT id FROM users WHERE email = ?", (admin_email,)).fetchone()
+def bootstrap_local_user(connection: sqlite3.Connection) -> User:
+    local_email = "local@rag-chatbot"
+    existing = connection.execute("SELECT * FROM users WHERE email = ?", (local_email,)).fetchone()
     if existing:
-        return
+        return User(id=existing["id"], email=existing["email"], name=existing["name"], role=existing["role"])
     connection.execute(
         "INSERT INTO users (email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
-        (admin_email, "Admin", hash_password(admin_password), "admin", utc_now()),
+        (local_email, "Local Workspace", hash_password(secrets.token_urlsafe(32)), "user", utc_now()),
     )
     connection.commit()
+    row = find_user(connection, local_email)
+    if row is None:
+        raise RuntimeError("Local workspace user was not initialized")
+    return User(id=row["id"], email=row["email"], name=row["name"], role=row["role"])
 
 
 def find_user(connection: sqlite3.Connection, email: str) -> sqlite3.Row | None:
@@ -414,41 +417,10 @@ def load_messages(connection: sqlite3.Connection, conversation_id: int) -> list[
     return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 
-def render_auth(connection: sqlite3.Connection) -> None:
-    st.title("Local Document Q&A")
-    st.caption("Private document search with PyMuPDF4LLM and llama.cpp")
-    login_tab, register_tab = st.tabs(["Sign in", "Register"])
-    with login_tab:
-        with st.form("login"):
-            email = st.text_input("Email", value=get_setting("ADMIN_EMAIL", "admin@example.com"))
-            password = st.text_input("Password", type="password", value=get_setting("ADMIN_PASSWORD", "ChangeMe123!"))
-            submitted = st.form_submit_button("Sign in", use_container_width=True)
-        if submitted:
-            user = authenticate(connection, email, password)
-            if user:
-                st.session_state.user = user
-                st.rerun()
-            st.error("Invalid email or password")
-    with register_tab:
-        with st.form("register"):
-            name = st.text_input("Name")
-            email = st.text_input("Work email")
-            password = st.text_input("Create password", type="password")
-            submitted = st.form_submit_button("Create account", use_container_width=True)
-        if submitted:
-            if len(password) < 8:
-                st.error("Password must be at least 8 characters.")
-            elif find_user(connection, email):
-                st.error("Email is already registered.")
-            else:
-                st.session_state.user = create_user(connection, email, name, password)
-                st.rerun()
-
-
 def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int | str]:
     with st.sidebar:
-        st.subheader(user.name)
-        st.caption(f"{user.email} - {user.role}")
+        st.subheader("Local Workspace")
+        st.caption("No login required")
         if st.button("New chat", use_container_width=True):
             st.session_state.pop("conversation_id", None)
             st.session_state.messages = []
@@ -488,17 +460,10 @@ def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int 
         for row in rows:
             st.caption(f"{row['name']} - {row['section_count']} sections")
 
-        if user.role == "admin":
-            st.divider()
-            st.write("Admin dashboard")
-            st.metric("Users", connection.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"])
-            st.metric("Documents", connection.execute("SELECT COUNT(*) AS count FROM documents").fetchone()["count"])
-            st.metric("Sections", connection.execute("SELECT COUNT(*) AS count FROM sections").fetchone()["count"])
-
         st.divider()
-        if st.button("Sign out", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
+        st.write("Stats")
+        st.metric("Documents", connection.execute("SELECT COUNT(*) AS count FROM documents").fetchone()["count"])
+        st.metric("Sections", connection.execute("SELECT COUNT(*) AS count FROM sections").fetchone()["count"])
     return {"model_path": model_path, "n_ctx": n_ctx, "n_threads": n_threads, "max_tokens": max_tokens}
 
 
@@ -569,11 +534,7 @@ def main() -> None:
     st.set_page_config(page_title="Local Document Q&A", page_icon="Doc", layout="wide")
     connection = connect_db()
     migrate(connection)
-    bootstrap_admin(connection)
-    user = st.session_state.get("user")
-    if not user:
-        render_auth(connection)
-        return
+    user = bootstrap_local_user(connection)
     settings = render_sidebar(connection, user)
     render_chat(connection, user, settings)
 

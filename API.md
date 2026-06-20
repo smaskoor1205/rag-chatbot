@@ -1,50 +1,26 @@
-# API
+# Application Interface
 
-Base URL: `http://localhost:4000`
+The current app is a Streamlit application, so it does not expose a separate HTTP API.
 
-## Authentication
+Main entry point:
 
-`POST /api/auth/register`
-
-```json
-{ "email": "user@example.com", "name": "User", "password": "Password123!" }
+```text
+app.py
 ```
 
-`POST /api/auth/login`
+Run locally:
 
-```json
-{ "email": "admin@example.com", "password": "ChangeMe123!" }
+```bash
+streamlit run app.py
 ```
 
-Responses include `{ "user": ..., "token": "..." }`. Send the token as `Authorization: Bearer <token>`.
+The UI provides:
 
-## Documents
+- Document upload
+- Local extraction and indexing
+- Model path configuration
+- Chat input
+- Retrieved-section citations
+- Local SQLite-backed chat history
 
-`GET /api/documents` returns indexed documents visible to the user.
-
-`POST /api/documents` accepts multipart form field `file` for PDF, DOCX, TXT, Markdown, HTML, and HTM.
-
-## Chat
-
-`GET /api/chat/conversations` returns recent conversations.
-
-`GET /api/chat/conversations/:id/messages` returns conversation messages.
-
-`POST /api/chat/stream`
-
-```json
-{ "message": "What does the policy say?", "conversationId": "optional-uuid" }
-```
-
-Streams server-sent events:
-
-- `token`: partial assistant text
-- `done`: conversation id and citations
-
-## Admin
-
-`GET /api/admin/stats` returns user, document, message, and health counts for admins.
-
-## Health
-
-`GET /health` and `GET /health/ready`.
+The older React + Express API still exists under `client/` and `server/`, but it is not the primary app workflow.
