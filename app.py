@@ -8,11 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-import docx
-import pymupdf4llm
 import streamlit as st
-from bs4 import BeautifulSoup
-from llama_cpp import Llama
 
 APP_DIR = Path(__file__).parent
 DATA_DIR = APP_DIR / "local_rag_data"
@@ -190,8 +186,18 @@ def stable_file_name(original_name: str, content: bytes) -> str:
 def extract_markdown(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
+        try:
+            import pymupdf4llm
+        except ModuleNotFoundError as exc:
+            raise RuntimeError("Install PyMuPDF4LLM with: pip install pymupdf4llm") from exc
+
         return pymupdf4llm.to_markdown(str(path), page_chunks=False)
     if suffix == ".docx":
+        try:
+            import docx
+        except ModuleNotFoundError as exc:
+            raise RuntimeError("Install python-docx with: pip install python-docx") from exc
+
         document = docx.Document(str(path))
         lines = []
         for paragraph in document.paragraphs:
@@ -206,6 +212,11 @@ def extract_markdown(path: Path) -> str:
         return "\n\n".join(lines)
     raw = path.read_text(encoding="utf-8", errors="ignore")
     if suffix in {".html", ".htm"}:
+        try:
+            from bs4 import BeautifulSoup
+        except ModuleNotFoundError as exc:
+            raise RuntimeError("Install BeautifulSoup with: pip install beautifulsoup4") from exc
+
         soup = BeautifulSoup(raw, "html.parser")
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
@@ -330,7 +341,12 @@ def retrieve_sections(connection: sqlite3.Connection, user: User, question: str,
 
 
 @st.cache_resource(show_spinner=False)
-def load_llama(model_path: str, n_ctx: int, n_threads: int) -> Llama:
+def load_llama(model_path: str, n_ctx: int, n_threads: int):
+    try:
+        from llama_cpp import Llama
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("Install llama.cpp Python bindings with: pip install llama-cpp-python") from exc
+
     return Llama(
         model_path=model_path,
         n_ctx=n_ctx,
