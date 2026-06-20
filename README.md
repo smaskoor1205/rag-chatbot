@@ -35,6 +35,18 @@ streamlit run app.py
 
 Download a local `.gguf` model into `models/`, then set the model path in the app sidebar. See `LOCAL_FIRST_RAG.md`.
 
+## Python Quality Checks
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+pre-commit run --all-files
+ruff format app.py tests
+ruff check app.py tests
+mypy app.py
+pytest
+```
+
 ## Commands
 
 ```bash

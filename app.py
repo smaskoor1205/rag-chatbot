@@ -5,7 +5,7 @@ import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import docx
@@ -13,7 +13,6 @@ import pymupdf4llm
 import streamlit as st
 from bs4 import BeautifulSoup
 from llama_cpp import Llama
-
 
 APP_DIR = Path(__file__).parent
 DATA_DIR = APP_DIR / "local_rag_data"
@@ -43,7 +42,7 @@ class Section:
 
 
 def utc_now() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def get_setting(name: str, default: str = "") -> str:
@@ -74,6 +73,12 @@ def connect_db() -> sqlite3.Connection:
     connection = sqlite3.connect(DB_PATH, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def require_lastrowid(cursor: sqlite3.Cursor) -> int:
+    if cursor.lastrowid is None:
+        raise RuntimeError("SQLite insert did not return a row id")
+    return cursor.lastrowid
 
 
 def migrate(connection: sqlite3.Connection) -> None:
@@ -247,7 +252,9 @@ def split_markdown_sections(markdown: str, max_words: int = 850) -> list[dict[st
             continue
         for part_index, start in enumerate(range(0, len(words), max_words)):
             part = " ".join(words[start : start + max_words])
-            sections.append({"title": f"{section['title']} part {part_index + 1}", "content": part, "page": section["page"]})
+            sections.append(
+                {"title": f"{section['title']} part {part_index + 1}", "content": part, "page": section["page"]}
+            )
     return sections
 
 
@@ -264,7 +271,7 @@ def ingest_upload(connection: sqlite3.Connection, user: User, uploaded_file) -> 
         "INSERT INTO documents (user_id, name, path, section_count, created_at) VALUES (?, ?, ?, ?, ?)",
         (user.id, uploaded_file.name, str(saved_path), len(sections), utc_now()),
     )
-    document_id = int(cursor.lastrowid)
+    document_id = require_lastrowid(cursor)
     connection.executemany(
         "INSERT INTO sections (document_id, title, content, page, ordinal, created_at) VALUES (?, ?, ?, ?, ?, ?)",
         [
@@ -335,8 +342,13 @@ def build_prompt(question: str, sections: list[Section]) -> str:
         f"[{index + 1}] {section.document_name} / {section.title}\n{section.content[:2200]}"
         for index, section in enumerate(sections)
     )
+    system_instruction = (
+        "You are a local document Q&A assistant. Answer only from the provided document sections. "
+        "If the answer is not in the sections, say that the document does not provide enough information. "
+        "Cite sources inline as [1], [2]."
+    )
     return f"""<|im_start|>system
-You are a local document Q&A assistant. Answer only from the provided document sections. If the answer is not in the sections, say that the document does not provide enough information. Cite sources inline as [1], [2].
+{system_instruction}
 <|im_end|>
 <|im_start|>user
 Document sections:
@@ -348,7 +360,9 @@ Question: {question}
 """
 
 
-def generate_answer(model_path: str, question: str, sections: list[Section], n_ctx: int, n_threads: int, max_tokens: int) -> str:
+def generate_answer(
+    model_path: str, question: str, sections: list[Section], n_ctx: int, n_threads: int, max_tokens: int
+) -> str:
     llm = load_llama(model_path, n_ctx, n_threads)
     prompt = build_prompt(question, sections)
     result = llm(prompt, max_tokens=max_tokens, temperature=0.2, top_p=0.9, stop=["<|im_end|>", "<|im_start|>"])
@@ -364,11 +378,18 @@ def get_or_create_conversation(connection: sqlite3.Connection, user: User, title
         (user.id, title[:80] or "New chat", utc_now()),
     )
     connection.commit()
-    st.session_state.conversation_id = int(cursor.lastrowid)
-    return int(cursor.lastrowid)
+    conversation_id = require_lastrowid(cursor)
+    st.session_state.conversation_id = conversation_id
+    return conversation_id
 
 
-def save_message(connection: sqlite3.Connection, conversation_id: int, role: str, content: str, citations: list[Section] | None = None) -> None:
+def save_message(
+    connection: sqlite3.Connection,
+    conversation_id: int,
+    role: str,
+    content: str,
+    citations: list[Section] | None = None,
+) -> None:
     payload = [
         {
             "document": section.document_name,
@@ -427,7 +448,7 @@ def render_auth(connection: sqlite3.Connection) -> None:
 def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int | str]:
     with st.sidebar:
         st.subheader(user.name)
-        st.caption(f"{user.email} · {user.role}")
+        st.caption(f"{user.email} - {user.role}")
         if st.button("New chat", use_container_width=True):
             st.session_state.pop("conversation_id", None)
             st.session_state.messages = []
@@ -436,10 +457,17 @@ def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int 
         st.divider()
         st.write("Local model")
         discovered_models = sorted(str(path) for path in MODEL_DIR.glob("*.gguf"))
-        default_model = get_setting("LLAMA_MODEL_PATH", discovered_models[0] if discovered_models else str(MODEL_DIR / "model.gguf"))
+        default_model = get_setting(
+            "LLAMA_MODEL_PATH", discovered_models[0] if discovered_models else str(MODEL_DIR / "model.gguf")
+        )
         model_path = st.text_input("GGUF model path", value=default_model)
         n_ctx = st.slider("Context tokens", 2048, 16384, int(get_setting("LLAMA_N_CTX", "8192")), step=1024)
-        n_threads = st.slider("CPU threads", 1, max(1, os.cpu_count() or 4), int(get_setting("LLAMA_N_THREADS", str(max(1, min(8, os.cpu_count() or 4))))))
+        n_threads = st.slider(
+            "CPU threads",
+            1,
+            max(1, os.cpu_count() or 4),
+            int(get_setting("LLAMA_N_THREADS", str(max(1, min(8, os.cpu_count() or 4))))),
+        )
         max_tokens = st.slider("Answer tokens", 128, 2048, 700, step=64)
 
         st.divider()
@@ -458,7 +486,7 @@ def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int 
             (user.id,),
         ).fetchall()
         for row in rows:
-            st.caption(f"{row['name']} · {row['section_count']} sections")
+            st.caption(f"{row['name']} - {row['section_count']} sections")
 
         if user.role == "admin":
             st.divider()
@@ -505,9 +533,15 @@ def render_chat(connection: sqlite3.Connection, user: User, settings: dict[str, 
 
     sections = retrieve_sections(connection, user, question)
     if not sections:
-        answer = "I could not find relevant sections in your uploaded documents. Upload a document or ask about content that appears in it."
+        answer = (
+            "I could not find relevant sections in your uploaded documents. "
+            "Upload a document or ask about content that appears in it."
+        )
     elif not model_path.exists():
-        answer = "Relevant sections were found, but no local GGUF model is available. Add a model path in the sidebar to generate an answer."
+        answer = (
+            "Relevant sections were found, but no local GGUF model is available. "
+            "Add a model path in the sidebar to generate an answer."
+        )
     else:
         with st.spinner("Running local llama.cpp inference..."):
             answer = generate_answer(
@@ -532,7 +566,7 @@ def render_chat(connection: sqlite3.Connection, user: User, settings: dict[str, 
 
 
 def main() -> None:
-    st.set_page_config(page_title="Local Document Q&A", page_icon="📄", layout="wide")
+    st.set_page_config(page_title="Local Document Q&A", page_icon="Doc", layout="wide")
     connection = connect_db()
     migrate(connection)
     bootstrap_admin(connection)
