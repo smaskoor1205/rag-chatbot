@@ -15,6 +15,12 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+For local LLM answers through llama.cpp, install:
+
+```bash
+pip install -r requirements-llama.txt
+```
+
 ## Add a Local Model
 
 Download a GGUF instruct model and place it in:

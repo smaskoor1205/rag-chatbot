@@ -23,6 +23,11 @@ streamlit run app.py
 ```
 
 Open the local Streamlit URL shown in the terminal. The app opens directly with no login.
+For local GGUF model generation, install the optional llama.cpp binding:
+
+```bash
+pip install -r requirements-llama.txt
+```
 
 ## Local-first Streamlit Version
 
@@ -52,6 +57,7 @@ pytest
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
+pip install -r requirements-llama.txt
 pip install -r requirements-dev.txt
 pre-commit run --all-files
 pytest

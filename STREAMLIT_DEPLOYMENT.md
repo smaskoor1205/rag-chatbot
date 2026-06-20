@@ -16,6 +16,7 @@ streamlit run app.py
 ```
 
 Place a GGUF model under `models/`, then set the model path in the sidebar.
+Install `requirements-llama.txt` only on machines where `llama-cpp-python` can build or install successfully.
 
 ## Streamlit Cloud Note
 
