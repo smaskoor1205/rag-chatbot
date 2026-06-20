@@ -398,6 +398,27 @@ Question: {question}
 """
 
 
+def generate_extractive_answer(question: str, sections: list[Section]) -> str:
+    if not sections:
+        return (
+            "I could not find relevant sections in your uploaded documents. "
+            "Upload a document or ask about content that appears in it."
+        )
+
+    lines = [
+        "I found relevant document sections for your question. "
+        "A local GGUF model is not connected, so this is an extractive answer from the retrieved text.",
+        "",
+    ]
+    for index, section in enumerate(sections, start=1):
+        excerpt = " ".join(section.content.split())[:700]
+        lines.append(f"[{index}] {section.document_name} / {section.title}")
+        lines.append(excerpt)
+        lines.append("")
+    lines.append("To generate a rewritten natural-language answer, add a GGUF model path in the sidebar.")
+    return "\n".join(lines).strip()
+
+
 def generate_answer(
     model_path: str, question: str, sections: list[Section], n_ctx: int, n_threads: int, max_tokens: int
 ) -> str:
@@ -516,14 +537,11 @@ def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int 
 
 def render_chat(connection: sqlite3.Connection, user: User, settings: dict[str, int | str]) -> None:
     st.title("Local-first Document Q&A")
-    st.caption("Find relevant document sections, retrieve the best context, and answer with a local llama.cpp model.")
+    st.caption("Upload documents, retrieve relevant sections, and optionally answer with a local llama.cpp model.")
 
     model_path = Path(str(settings["model_path"])).expanduser()
     if not model_path.exists():
-        st.warning(
-            "Add a GGUF model file locally, then set its path in the sidebar. "
-            "Example: models/qwen2.5-7b-instruct-q4_k_m.gguf"
-        )
+        st.info("No GGUF model connected. The app will still answer using retrieved document excerpts.")
 
     if "messages" not in st.session_state:
         conversation_id = st.session_state.get("conversation_id")
@@ -550,10 +568,7 @@ def render_chat(connection: sqlite3.Connection, user: User, settings: dict[str, 
             "Upload a document or ask about content that appears in it."
         )
     elif not model_path.exists():
-        answer = (
-            "Relevant sections were found, but no local GGUF model is available. "
-            "Add a model path in the sidebar to generate an answer."
-        )
+        answer = generate_extractive_answer(question, sections)
     else:
         with st.spinner("Running local llama.cpp inference..."):
             try:
