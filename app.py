@@ -1,4 +1,5 @@
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -16,6 +17,13 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "local_rag.sqlite"
 MODEL_DIR = APP_DIR / "models"
 SUPPORTED_TYPES = ["pdf", "docx", "txt", "md", "html", "htm"]
+
+OPTIONAL_DEPENDENCIES = {
+    "PDF extraction": ("pymupdf4llm", "pymupdf4llm"),
+    "DOCX extraction": ("docx", "python-docx"),
+    "HTML extraction": ("bs4", "beautifulsoup4"),
+    "Local LLM": ("llama_cpp", "llama-cpp-python"),
+}
 
 
 @dataclass
@@ -47,6 +55,13 @@ def get_setting(name: str, default: str = "") -> str:
     except Exception:
         secret_value = None
     return str(secret_value or os.getenv(name) or default)
+
+
+def dependency_status() -> list[tuple[str, bool, str]]:
+    return [
+        (label, importlib.util.find_spec(module_name) is not None, package_name)
+        for label, (module_name, package_name) in OPTIONAL_DEPENDENCIES.items()
+    ]
 
 
 def hash_password(password: str) -> str:
@@ -463,13 +478,25 @@ def render_sidebar(connection: sqlite3.Connection, user: User) -> dict[str, int 
         max_tokens = st.slider("Answer tokens", 128, 2048, 700, step=64)
 
         st.divider()
+        with st.expander("Setup status"):
+            for label, installed, package_name in dependency_status():
+                if installed:
+                    st.success(f"{label}: installed")
+                else:
+                    st.warning(f"{label}: install with `pip install {package_name}`")
+
+        st.divider()
         uploaded_files = st.file_uploader("Upload documents", type=SUPPORTED_TYPES, accept_multiple_files=True)
         if uploaded_files and st.button("Extract and index", use_container_width=True):
             with st.spinner("Extracting structured sections..."):
                 total = 0
-                for uploaded_file in uploaded_files:
-                    total += ingest_upload(connection, user, uploaded_file)
-            st.success(f"Indexed {total} sections.")
+                try:
+                    for uploaded_file in uploaded_files:
+                        total += ingest_upload(connection, user, uploaded_file)
+                except Exception as exc:
+                    st.error(str(exc))
+                else:
+                    st.success(f"Indexed {total} sections.")
 
         st.divider()
         st.write("Documents")
@@ -529,14 +556,17 @@ def render_chat(connection: sqlite3.Connection, user: User, settings: dict[str, 
         )
     else:
         with st.spinner("Running local llama.cpp inference..."):
-            answer = generate_answer(
-                str(model_path),
-                question,
-                sections,
-                int(settings["n_ctx"]),
-                int(settings["n_threads"]),
-                int(settings["max_tokens"]),
-            )
+            try:
+                answer = generate_answer(
+                    str(model_path),
+                    question,
+                    sections,
+                    int(settings["n_ctx"]),
+                    int(settings["n_threads"]),
+                    int(settings["max_tokens"]),
+                )
+            except Exception as exc:
+                answer = f"Could not run the local model: {exc}"
 
     with st.chat_message("assistant"):
         st.markdown(answer)
