@@ -42,7 +42,11 @@ def utc_now() -> str:
 
 
 def get_setting(name: str, default: str = "") -> str:
-    return str(st.secrets.get(name) or os.getenv(name) or default)
+    try:
+        secret_value = st.secrets.get(name)
+    except Exception:
+        secret_value = None
+    return str(secret_value or os.getenv(name) or default)
 
 
 def hash_password(password: str) -> str:
